@@ -175,36 +175,46 @@ def detect_pattern_deviation(transactions):
         if txn["channel"] == "bank_transfer"
     ]
 
-    if len(transfers) < 5:
-        return []
-
-    split_index = int(len(transfers) * 0.8)
-
-    historical = transfers[:split_index]
-    recent = transfers[split_index:]
-
-    historical_amounts = [
-        txn["amount"]
-        for txn in historical
-        if txn["amount"] > 0
-    ]
-
-    if not historical_amounts:
-        return []
-
-    normal_average = mean(historical_amounts)
-
     findings = []
 
-    for transaction in recent:
+    # We need enough historical transactions
+    # to establish a meaningful customer baseline.
+    for index, transaction in enumerate(transfers):
+
+        previous_transfers = transfers[:index]
+
+        if len(previous_transfers) < 3:
+            continue
+
+        historical_amounts = [
+            txn["amount"]
+            for txn in previous_transfers
+            if txn["amount"] > 0
+        ]
+
+        if not historical_amounts:
+            continue
+
+        # Median is used instead of average because
+        # unusually large transactions should not
+        # distort the customer's normal baseline.
+        sorted_amounts = sorted(historical_amounts)
+
+        middle = len(sorted_amounts) // 2
+
+        if len(sorted_amounts) % 2 == 0:
+            normal_amount = (
+                sorted_amounts[middle - 1]
+                + sorted_amounts[middle]
+            ) / 2
+        else:
+            normal_amount = sorted_amounts[middle]
 
         amount = transaction["amount"]
 
-        if amount > normal_average * PATTERN_DEVIATION_MULTIPLIER:
+        if amount > normal_amount * PATTERN_DEVIATION_MULTIPLIER:
 
-            deviation_ratio = (
-                amount / normal_average
-            )
+            deviation_ratio = amount / normal_amount
 
             findings.append({
                 "rule": "PATTERN_DEVIATION",
@@ -214,13 +224,13 @@ def detect_pattern_deviation(transactions):
                 "transactions": [
                     transaction
                 ],
-                "normal_average": normal_average,
+                "normal_amount": normal_amount,
                 "deviation_ratio": deviation_ratio,
                 "reason": (
                     f"Transaction amount ₹{amount:,.0f} "
                     f"is {deviation_ratio:.1f}x the customer's "
-                    f"historical bank-transfer average of "
-                    f"₹{normal_average:,.0f}."
+                    f"established bank-transfer baseline of "
+                    f"₹{normal_amount:,.0f}."
                 )
             })
 
