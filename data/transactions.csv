@@ -1,0 +1,28 @@
+date,description,payee,amount,channel
+2026-06-01 09:15:00,Salary Credit,ABC Technologies,45000,bank_transfer
+2026-06-02 13:20:00,Grocery Purchase,FreshMart,1850,card
+2026-06-04 10:30:00,Electricity Bill,Tamil Nadu Electricity Board,2200,upi
+2026-06-06 19:10:00,Food Purchase,FoodHub,650,upi
+2026-06-10 11:45:00,ATM Withdrawal,ATM-001,5000,atm
+2026-06-15 09:10:00,Salary Credit,ABC Technologies,45000,bank_transfer
+2026-06-18 14:05:00,Grocery Purchase,FreshMart,2100,card
+2026-06-20 20:15:00,Food Purchase,FoodHub,720,upi
+2026-06-25 10:20:00,Electricity Bill,Tamil Nadu Electricity Board,2300,upi
+2026-07-01 09:05:00,Salary Credit,ABC Technologies,45000,bank_transfer
+2026-07-03 13:40:00,Grocery Purchase,FreshMart,1950,card
+2026-07-05 19:25:00,Food Purchase,FoodHub,800,upi
+2026-07-10 12:15:00,ATM Withdrawal,ATM-001,4000,atm
+2026-07-15 09:20:00,Salary Credit,ABC Technologies,45000,bank_transfer
+2026-07-18 14:10:00,Grocery Purchase,FreshMart,2050,card
+2026-07-22 10:45:00,Electricity Bill,Tamil Nadu Electricity Board,2250,upi
+2026-08-01 09:00:00,Salary Credit,ABC Technologies,45000,bank_transfer
+2026-08-03 13:15:00,Grocery Purchase,FreshMart,1900,card
+2026-08-05 19:40:00,Food Purchase,FoodHub,750,upi
+2026-08-10 02:15:00,Transfer,NewPayee-XYZ,250000,bank_transfer
+2026-08-10 02:18:00,Transfer,NewPayee-XYZ,180000,bank_transfer
+2026-08-10 02:22:00,Transfer,NewPayee-XYZ,220000,bank_transfer
+2026-08-10 02:27:00,Transfer,NewPayee-XYZ,150000,bank_transfer
+2026-08-15 09:10:00,Salary Credit,ABC Technologies,45000,bank_transfer
+2026-08-18 14:20:00,Grocery Purchase,FreshMart,2000,card
+2026-08-22 11:30:00,Transfer,International Vendor,175000,bank_transfer
+2026-08-22 11:35:00,Transfer,International Vendor,125000,bank_transfer
