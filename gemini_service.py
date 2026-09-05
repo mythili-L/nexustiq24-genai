@@ -39,7 +39,6 @@ def load_system_prompt():
 # ==============================
 # Generate investigation report
 # ==============================
-
 def generate_investigation_report(evidence):
 
     system_prompt = load_system_prompt()
@@ -60,12 +59,29 @@ EVIDENCE:
 Generate the investigation report now.
 """
 
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt
-    )
+    # Try Gemini up to 3 times in case of a temporary connection error
+    for attempt in range(1, 4):
 
-    return response.text
+        try:
+
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt
+            )
+
+            return response.text
+
+        except Exception as error:
+
+            print(
+                f"Gemini request failed "
+                f"(attempt {attempt}/3): {error}"
+            )
+
+            if attempt == 3:
+                raise RuntimeError(
+                    "Gemini API request failed after 3 attempts."
+                ) from error
 
 
 # ==============================
