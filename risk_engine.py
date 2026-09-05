@@ -10,9 +10,11 @@ from statistics import mean
 
 LARGE_TRANSACTION_THRESHOLD = 100000
 NEW_PAYEE_BURST_COUNT = 3
+
 ODD_HOUR_START = 0
 ODD_HOUR_END = 5
-PATTERN_DEVIATION_MULTIPLIER = 5
+
+PATTERN_DEVIATION_MULTIPLIER = 3
 
 
 # ==============================
@@ -20,14 +22,15 @@ PATTERN_DEVIATION_MULTIPLIER = 5
 # ==============================
 
 def load_transactions(file_path):
-    """Load transaction history from CSV."""
+    """Load transactions from CSV and add a traceable transaction ID."""
 
     transactions = []
 
     with open(file_path, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
 
-        for row in reader:
+        for index, row in enumerate(reader, start=1):
+            row["transaction_id"] = f"TXN-{index:03d}"
             row["amount"] = float(row["amount"])
             transactions.append(row)
 
@@ -39,7 +42,6 @@ def load_transactions(file_path):
 # ==============================
 
 def detect_large_transactions(transactions):
-    """Detect transactions above the fixed large-transaction threshold."""
 
     findings = []
 
@@ -49,7 +51,12 @@ def detect_large_transactions(transactions):
 
             findings.append({
                 "rule": "LARGE_TRANSACTION",
-                "transaction": transaction,
+                "transaction_ids": [
+                    transaction["transaction_id"]
+                ],
+                "transactions": [
+                    transaction
+                ],
                 "reason": (
                     f"Transaction amount ₹{transaction['amount']:,.0f} "
                     f"exceeds the large transaction threshold of "
@@ -65,20 +72,18 @@ def detect_large_transactions(transactions):
 # ==============================
 
 def detect_new_payee_bursts(transactions):
-    """
-    Detect multiple transactions to the same payee
-    on the same calendar day.
-    """
 
     grouped = defaultdict(list)
 
+    # Group transactions by date and payee
     for transaction in transactions:
 
         timestamp = datetime.fromisoformat(transaction["date"])
 
-        calendar_date = timestamp.date()
-
-        key = (calendar_date, transaction["payee"])
+        key = (
+            timestamp.date(),
+            transaction["payee"]
+        )
 
         grouped[key].append(transaction)
 
@@ -86,19 +91,37 @@ def detect_new_payee_bursts(transactions):
 
     for (date, payee), txns in grouped.items():
 
-        if len(txns) >= NEW_PAYEE_BURST_COUNT:
+        if len(txns) < NEW_PAYEE_BURST_COUNT:
+            continue
 
-            total = sum(txn["amount"] for txn in txns)
+        # Check whether payee appeared before this date
+        appeared_before = any(
+            previous["payee"] == payee
+            and datetime.fromisoformat(previous["date"]).date() < date
+            for previous in transactions
+        )
+
+        # Only flag if this is a new payee
+        if not appeared_before:
+
+            total = sum(
+                txn["amount"]
+                for txn in txns
+            )
 
             findings.append({
                 "rule": "NEW_PAYEE_BURST",
-                "date": str(date),
                 "payee": payee,
+                "date": str(date),
+                "transaction_ids": [
+                    txn["transaction_id"]
+                    for txn in txns
+                ],
                 "transactions": txns,
                 "reason": (
-                    f"{len(txns)} transactions were made to "
-                    f"{payee} on {date}, totaling "
-                    f"₹{total:,.0f}."
+                    f"New payee '{payee}' received "
+                    f"{len(txns)} transactions on {date}, "
+                    f"totaling ₹{total:,.0f}."
                 )
             })
 
@@ -110,55 +133,55 @@ def detect_new_payee_bursts(transactions):
 # ==============================
 
 def detect_odd_hour_transactions(transactions):
-    """Detect transactions made between midnight and 5 AM."""
 
     findings = []
 
     for transaction in transactions:
 
-        try:
-            timestamp = datetime.fromisoformat(transaction["date"])
+        timestamp = datetime.fromisoformat(
+            transaction["date"]
+        )
 
-            if ODD_HOUR_START <= timestamp.hour < ODD_HOUR_END:
+        if ODD_HOUR_START <= timestamp.hour < ODD_HOUR_END:
 
-                findings.append({
-                    "rule": "ODD_HOUR",
-                    "transaction": transaction,
-                    "reason": (
-                        f"Transaction occurred at "
-                        f"{timestamp.strftime('%H:%M')}, "
-                        f"which is within the unusual-hours "
-                        f"window of 00:00–05:00."
-                    )
-                })
-
-        except ValueError:
-            continue
+            findings.append({
+                "rule": "ODD_HOUR",
+                "transaction_ids": [
+                    transaction["transaction_id"]
+                ],
+                "transactions": [
+                    transaction
+                ],
+                "reason": (
+                    f"Transaction occurred at "
+                    f"{timestamp.strftime('%H:%M')}, "
+                    f"which is within the unusual-hours "
+                    f"window of 00:00–05:00."
+                )
+            })
 
     return findings
 
 
 # ==============================
-# Rule 4: Deviation from normal
+# Rule 4: Pattern deviation
 # ==============================
 
 def detect_pattern_deviation(transactions):
-    """
-    Compare recent transactions against the customer's
-    established transaction amount pattern.
 
-    The first 80% of transactions are treated as the
-    customer's established history. The remaining 20%
-    are evaluated as recent activity.
-    """
+    # Only analyze bank transfers
+    transfers = [
+        txn for txn in transactions
+        if txn["channel"] == "bank_transfer"
+    ]
 
-    if len(transactions) < 10:
+    if len(transfers) < 5:
         return []
 
-    split_index = int(len(transactions) * 0.8)
+    split_index = int(len(transfers) * 0.8)
 
-    historical = transactions[:split_index]
-    recent = transactions[split_index:]
+    historical = transfers[:split_index]
+    recent = transfers[split_index:]
 
     historical_amounts = [
         txn["amount"]
@@ -179,18 +202,25 @@ def detect_pattern_deviation(transactions):
 
         if amount > normal_average * PATTERN_DEVIATION_MULTIPLIER:
 
-            deviation_ratio = amount / normal_average
+            deviation_ratio = (
+                amount / normal_average
+            )
 
             findings.append({
                 "rule": "PATTERN_DEVIATION",
-                "transaction": transaction,
+                "transaction_ids": [
+                    transaction["transaction_id"]
+                ],
+                "transactions": [
+                    transaction
+                ],
                 "normal_average": normal_average,
                 "deviation_ratio": deviation_ratio,
                 "reason": (
-                    f"Transaction amount ₹{amount:,.0f} is "
-                    f"{deviation_ratio:.1f}x the customer's "
-                    f"historical average transaction amount "
-                    f"of ₹{normal_average:,.0f}."
+                    f"Transaction amount ₹{amount:,.0f} "
+                    f"is {deviation_ratio:.1f}x the customer's "
+                    f"historical bank-transfer average of "
+                    f"₹{normal_average:,.0f}."
                 )
             })
 
@@ -202,7 +232,6 @@ def detect_pattern_deviation(transactions):
 # ==============================
 
 def analyze_transactions(file_path):
-    """Run all deterministic transaction risk checks."""
 
     transactions = load_transactions(file_path)
 
@@ -210,7 +239,7 @@ def analyze_transactions(file_path):
         transactions
     )
 
-    payee_bursts = detect_new_payee_bursts(
+    new_payee_bursts = detect_new_payee_bursts(
         transactions
     )
 
@@ -224,13 +253,27 @@ def analyze_transactions(file_path):
 
     all_findings = (
         large_transactions
-        + payee_bursts
+        + new_payee_bursts
         + odd_hour_transactions
         + pattern_deviations
     )
 
+    # Determine investigation priority
+    if any(
+        finding["rule"] == "NEW_PAYEE_BURST"
+        for finding in all_findings
+    ):
+        priority = "HIGH"
+
+    elif all_findings:
+        priority = "MEDIUM"
+
+    else:
+        priority = "LOW"
+
     return {
         "attention_needed": len(all_findings) > 0,
+        "investigation_priority": priority,
         "transaction_count": len(transactions),
         "findings": all_findings
     }
